@@ -25,6 +25,13 @@ def _env_int(key: str, default: int) -> int:
     return int(raw)
 
 
+def _env_bool(key: str, default: bool) -> bool:
+    raw = os.getenv(key)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 @dataclass(frozen=True)
 class Settings:
     openrouter_api_key: str | None
@@ -41,13 +48,18 @@ class Settings:
     top_k: int
     fastembed_model: str
     excerpt_max_chars: int
+    openrouter_reasoning_enabled: bool
 
 
 def get_settings() -> Settings:
     root = Path(__file__).resolve().parents[2]
     default_chroma = root / "chroma_db"
     persist = os.getenv("CHROMA_PERSIST_DIR", "").strip()
-    chroma_dir = Path(persist) if persist else default_chroma
+    if persist:
+        p = Path(persist)
+        chroma_dir = p.resolve() if p.is_absolute() else (root / p)
+    else:
+        chroma_dir = default_chroma
 
     key = os.getenv("OPENROUTER_API_KEY", "").strip() or None
 
@@ -56,9 +68,7 @@ def get_settings() -> Settings:
         openrouter_base_url=os.getenv(
             "OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"
         ).rstrip("/"),
-        openrouter_model=os.getenv(
-            "OPENROUTER_MODEL", "meta-llama/llama-3.2-3b-instruct:free"
-        ),
+        openrouter_model=os.getenv("OPENROUTER_MODEL", "openrouter/free"),
         openrouter_http_referer=os.getenv(
             "OPENROUTER_HTTP_REFERER", "http://localhost:8501"
         ),
@@ -74,7 +84,5 @@ def get_settings() -> Settings:
         top_k=_env_int("TOP_K", 3),
         fastembed_model=os.getenv("FASTEMBED_MODEL", "thenlper/gte-large"),
         excerpt_max_chars=_env_int("EXCERPT_MAX_CHARS", 320),
+        openrouter_reasoning_enabled=_env_bool("OPENROUTER_REASONING_ENABLED", False),
     )
-
-
-settings = get_settings()

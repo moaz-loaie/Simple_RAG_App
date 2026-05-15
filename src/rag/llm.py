@@ -64,6 +64,28 @@ def _auth_exc(exc: BaseException) -> bool:
     return "401" in err or "403" in err or "invalid api key" in err.lower()
 
 
+def _openrouter_extra_body(cfg: Settings) -> dict | None:
+    if cfg.openrouter_reasoning_enabled:
+        return {"reasoning": {"enabled": True}}
+    return None
+
+
+def _make_openrouter_chat(cfg: Settings, *, extra_body: dict | None) -> ChatOpenAI:
+    return ChatOpenAI(
+        base_url=cfg.openrouter_base_url,
+        api_key=cfg.openrouter_api_key,
+        model=cfg.openrouter_model,
+        temperature=0,
+        timeout=cfg.request_timeout_seconds,
+        max_retries=0,
+        default_headers={
+            "HTTP-Referer": cfg.openrouter_http_referer,
+            "X-Title": cfg.openrouter_app_title,
+        },
+        extra_body=extra_body,
+    )
+
+
 def resolve_chat_model(s: Settings | None = None) -> ResolvedChatModel:
     """Pick OpenRouter (ChatOpenAI) when the key is set and the API is reachable; else Ollama."""
     cfg = s or get_settings()
@@ -79,21 +101,11 @@ def resolve_chat_model(s: Settings | None = None) -> ResolvedChatModel:
             provider_name="ollama (no OpenRouter key)",
         )
 
-    llm = ChatOpenAI(
-        base_url=cfg.openrouter_base_url,
-        api_key=cfg.openrouter_api_key,
-        model=cfg.openrouter_model,
-        temperature=0,
-        timeout=cfg.request_timeout_seconds,
-        max_retries=0,
-        default_headers={
-            "HTTP-Referer": cfg.openrouter_http_referer,
-            "X-Title": cfg.openrouter_app_title,
-        },
-    )
+    # Connectivity probe without OpenRouter-only extras (reasoning can skew tiny probes).
+    probe_llm = _make_openrouter_chat(cfg, extra_body=None)
 
     try:
-        llm.invoke(
+        probe_llm.invoke(
             [HumanMessage(content="ping")],
             max_tokens=1,
         )
@@ -116,7 +128,14 @@ def resolve_chat_model(s: Settings | None = None) -> ResolvedChatModel:
             )
         raise
 
-    return ResolvedChatModel(llm=llm, provider_name="openrouter")
+    extra = _openrouter_extra_body(cfg)
+    llm = _make_openrouter_chat(cfg, extra_body=extra)
+    label = "openrouter"
+    if cfg.openrouter_model:
+        label = f"openrouter ({cfg.openrouter_model})"
+    if cfg.openrouter_reasoning_enabled:
+        label += ", reasoning on"
+    return ResolvedChatModel(llm=llm, provider_name=label)
 
 
 _resolved: ResolvedChatModel | None = None

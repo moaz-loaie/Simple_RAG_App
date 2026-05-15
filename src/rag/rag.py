@@ -1,4 +1,4 @@
-"""End-to-end RAG: retrieve with scores, answer with same prompt as the notebook."""
+"""End-to-end RAG: retrieve with scores, then answer with a fixed context+question prompt."""
 
 from __future__ import annotations
 
