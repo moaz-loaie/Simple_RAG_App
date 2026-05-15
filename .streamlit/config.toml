@@ -1,0 +1,11 @@
+[browser]
+gatherUsageStats = false
+
+[server]
+headless = true
+# Fewer surprise reloads while editing other files; set to "auto" if you want live reload on save.
+fileWatcherType = "none"
+
+[runner]
+# Coalesce rapid widget updates instead of rerunning the full script every keystroke (where possible).
+fastReruns = true

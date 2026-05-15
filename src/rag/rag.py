@@ -19,7 +19,10 @@ from rag.llm import get_resolved_chat_model
 from rag.vectorstore import build_chroma, load_chroma
 
 _PROMPT = ChatPromptTemplate.from_template(
-    """Answer the question based only on the following context:
+    """Answer the question based only on the following context.
+Use Markdown when it helps readability: short headings (##), bullet lists for enumerations, and **bold** for important terms or names. Do not invent facts beyond the context.
+
+Context:
 {context}
 
 Question: {question}
@@ -36,6 +39,7 @@ class SourceChunk:
     page: int | None
     page_label: str | None
     excerpt: str
+    full_text: str
     distance: float
 
 
@@ -56,10 +60,17 @@ class RAGPipeline:
         *,
         persist_directory: Path | str | None = None,
         embedding: Embeddings | None = None,
+        citation_source_label: str | None = None,
     ) -> Chroma:
         raw_docs = load_pdf(pdf_path)
         splitter = make_text_splitter(self.settings)
         chunks = splitter.split_documents(raw_docs)
+        if citation_source_label:
+            label = citation_source_label.strip()
+            for ch in chunks:
+                meta = dict(ch.metadata or {})
+                meta["source"] = label
+                ch.metadata = meta
         emb = embedding or make_embeddings(self.settings)
         return build_chroma(
             chunks,
@@ -101,7 +112,10 @@ class RAGPipeline:
                     page = None
             label = meta.get("page_label")
             label_s = str(label) if label is not None else None
-            excerpt = (doc.page_content or "")[:max_e]
+            full_text = doc.page_content or ""
+            excerpt = full_text[:max_e]
+            if len(full_text) > max_e:
+                excerpt = excerpt[:-1] + "…"
             sources.append(
                 SourceChunk(
                     source_path=str(src),
@@ -109,10 +123,11 @@ class RAGPipeline:
                     page=page,
                     page_label=label_s,
                     excerpt=excerpt if excerpt else "(empty chunk)",
+                    full_text=full_text,
                     distance=float(dist),
                 )
             )
-            context_parts.append(doc.page_content or "")
+            context_parts.append(full_text)
 
         resolved = get_resolved_chat_model(self.settings)
         chain = _PROMPT | resolved.llm | StrOutputParser()

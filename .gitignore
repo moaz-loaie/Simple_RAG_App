@@ -8,6 +8,7 @@ __pycache__/
 .ruff_cache/
 chroma_db/
 .streamlit/*
+!.streamlit/config.toml
 .DS_Store
 Thumbs.db
 *.egg-info/

@@ -15,4 +15,13 @@ def main() -> None:
         raise SystemExit(1)
     extra = list(sys.argv[1:])
     cmd = [sys.executable, "-m", "streamlit", "run", str(app), *extra]
-    raise SystemExit(subprocess.call(cmd))
+    try:
+        code = subprocess.call(cmd)
+    except KeyboardInterrupt:
+        # User pressed Ctrl+C; avoid noisy tracebacks in the wrapper process.
+        code = 0
+    raise SystemExit(code)
+
+
+if __name__ == "__main__":
+    main()
