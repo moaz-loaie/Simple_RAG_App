@@ -17,6 +17,9 @@ dependencies = [
     "streamlit>=1.57.0",
 ]
 
+[project.scripts]
+rag-ui = "rag.cli:main"
+
 [build-system]
 requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
