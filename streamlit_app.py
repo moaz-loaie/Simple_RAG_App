@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import gc
 import tempfile
+import time
 from pathlib import Path
 
 import streamlit as st
@@ -11,6 +13,21 @@ from langchain_community.vectorstores import Chroma
 from rag.embeddings import make_embeddings
 from rag.llm import get_resolved_chat_model, reset_llm_cache
 from rag.rag import RAGPipeline
+
+
+def _unlink_temp_pdf(path: Path) -> None:
+    """Windows often keeps PDF handles briefly after load; retry instead of failing the run."""
+    for _ in range(8):
+        try:
+            path.unlink(missing_ok=True)
+            return
+        except PermissionError:
+            gc.collect()
+            time.sleep(0.12)
+    try:
+        path.unlink(missing_ok=True)
+    except PermissionError:
+        pass
 
 
 def _init_state() -> None:
@@ -57,10 +74,12 @@ def main() -> None:
             try:
                 if uploaded is not None:
                     suffix = Path(uploaded.name).suffix or ".pdf"
-                    fd, tmp_name = tempfile.mkstemp(suffix=suffix)
-                    Path(tmp_name).unlink(missing_ok=True)
-                    tmp_path = Path(tmp_name)
-                    tmp_path.write_bytes(uploaded.getvalue())
+                    with tempfile.NamedTemporaryFile(
+                        suffix=suffix, delete=False
+                    ) as tmp:
+                        tmp.write(uploaded.getvalue())
+                        tmp.flush()
+                        tmp_path = Path(tmp.name)
                     pdf_path = tmp_path
                     label = uploaded.name
                 elif path_input.strip():
@@ -84,7 +103,7 @@ def main() -> None:
                     st.success(f"Indexed: {label}")
             finally:
                 if tmp_path is not None:
-                    tmp_path.unlink(missing_ok=True)
+                    _unlink_temp_pdf(tmp_path)
 
     with col_b:
         if st.button("Load existing index from disk"):
