@@ -11,11 +11,6 @@ from langchain_core.embeddings import Embeddings
 from rag.config import Settings, get_settings
 
 
-def persist_path(s: Settings | None = None) -> Path:
-    cfg = s or get_settings()
-    return cfg.chroma_persist_dir
-
-
 def build_chroma(
     documents: list[Document],
     embedding: Embeddings,
